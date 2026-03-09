@@ -1,6 +1,5 @@
 """
 Generate the PDF report for the ATLAS TileCal linear reconstruction assignment.
-Uses reportlab for layout and embeds the pre-generated PNG plots.
 """
 
 import os
@@ -12,231 +11,193 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle,
     HRFlowable, PageBreak
 )
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 
 DIR = os.path.dirname(__file__)
 
-# Results (re-stated here so the PDF generation is self-contained)
-FOM_MEAN      =  -0.041601
-FOM_RMS       =   1.396269
-VAL_R2        =   0.958359
-TIMING_ACC    =   0.9348
-N_TRAIN       =  534337
-N_TEST        =  114502
-N_FILTERED    =    7271
-ENERGY_THR    =  10.0
-COEF          = [+2214.7488, -1435.2515, -1024.1498, +5244.2261,
-                 -2092.9458,  +784.2809,   -227.1638]
-BIAS          =  -0.6323
+FOM_MEAN   =  -0.041601
+FOM_RMS    =   1.396269
+VAL_R2     =   0.958359
+TIMING_ACC =   0.9348
+N_TRAIN    =  534337
+N_TEST     =  114502
+N_FILTERED =    7271
+ENERGY_THR =  10.0
+COEF       = [+2214.7488, -1435.2515, -1024.1498, +5244.2261,
+              -2092.9458,  +784.2809,   -227.1638]
+BIAS       =  -0.6323
 
 
 def build_styles():
     base = getSampleStyleSheet()
-    styles = {
-        "title":     ParagraphStyle("title",     parent=base["Title"],
-                                     fontSize=18, spaceAfter=6,
-                                     textColor=colors.HexColor("#1a3a5c")),
-        "subtitle":  ParagraphStyle("subtitle",  parent=base["Normal"],
-                                     fontSize=12, spaceAfter=10,
-                                     textColor=colors.HexColor("#2c6e9c"),
-                                     alignment=TA_CENTER),
-        "h2":        ParagraphStyle("h2",         parent=base["Heading2"],
-                                     fontSize=13, spaceBefore=14, spaceAfter=4,
-                                     textColor=colors.HexColor("#1a3a5c")),
-        "body":      ParagraphStyle("body",       parent=base["Normal"],
-                                     fontSize=10.5, leading=15,
-                                     alignment=TA_JUSTIFY, spaceAfter=6),
-        "mono":      ParagraphStyle("mono",       parent=base["Code"],
-                                     fontSize=9,  leading=13,
-                                     fontName="Courier"),
-        "caption":   ParagraphStyle("caption",    parent=base["Normal"],
-                                     fontSize=9,  textColor=colors.grey,
-                                     alignment=TA_CENTER, spaceAfter=8),
-        "small":     ParagraphStyle("small",      parent=base["Normal"],
-                                     fontSize=9.5, leading=14, spaceAfter=4),
+    return {
+        "title":   ParagraphStyle("title",   parent=base["Title"],
+                                   fontSize=18, spaceAfter=6,
+                                   textColor=colors.HexColor("#1a3a5c")),
+        "sub":     ParagraphStyle("sub",     parent=base["Normal"],
+                                   fontSize=11, spaceAfter=10,
+                                   textColor=colors.HexColor("#2c6e9c"),
+                                   alignment=TA_CENTER),
+        "h2":      ParagraphStyle("h2",      parent=base["Heading2"],
+                                   fontSize=13, spaceBefore=14, spaceAfter=4,
+                                   textColor=colors.HexColor("#1a3a5c")),
+        "body":    ParagraphStyle("body",    parent=base["Normal"],
+                                   fontSize=10.5, leading=15,
+                                   alignment=TA_JUSTIFY, spaceAfter=6),
+        "caption": ParagraphStyle("caption", parent=base["Normal"],
+                                   fontSize=9, textColor=colors.grey,
+                                   alignment=TA_CENTER, spaceAfter=8),
+        "small":   ParagraphStyle("small",   parent=base["Normal"],
+                                   fontSize=9.5, leading=14, spaceAfter=4),
     }
-    return styles
 
 
 def make_pdf(out_path):
     doc = SimpleDocTemplate(
-        out_path,
-        pagesize=A4,
-        leftMargin=2.2 * cm,
-        rightMargin=2.2 * cm,
-        topMargin=2.5 * cm,
-        bottomMargin=2.5 * cm,
+        out_path, pagesize=A4,
+        leftMargin=2.2*cm, rightMargin=2.2*cm,
+        topMargin=2.5*cm,  bottomMargin=2.5*cm,
     )
-
     S = build_styles()
     story = []
 
-    # ------------------------------------------------------------------
-    # Title block
-    # ------------------------------------------------------------------
     story.append(Paragraph("ATLAS Tile Calorimeter", S["title"]))
-    story.append(Paragraph("Linear Energy Reconstruction &mdash; Optimal Filter", S["subtitle"]))
+    story.append(Paragraph("Linear Energy Reconstruction - Optimal Filter", S["sub"]))
     story.append(Paragraph(
-        "GSoC 2026 Evaluation Assignment &nbsp;|&nbsp; "
-        "HSF &ndash; ATLAS: AI-Accelerated Reconstruction for the HL-LHC",
-        S["subtitle"]
+        "GSoC 2026 Evaluation Assignment | "
+        "HSF - ATLAS: AI-Accelerated Reconstruction for the HL-LHC",
+        S["sub"]
     ))
     story.append(HRFlowable(width="100%", thickness=1.2,
                              color=colors.HexColor("#2c6e9c"), spaceAfter=10))
 
-    # ------------------------------------------------------------------
-    # Section 1 -- Method
-    # ------------------------------------------------------------------
-    story.append(Paragraph("1. Method", S["h2"]))
+    # Section 1
+    story.append(Paragraph("1. Approach", S["h2"]))
     story.append(Paragraph(
-        "The ATLAS Tile Calorimeter reads pulse-shaped electrical signals every 25 ns "
-        "(one Bunch Crossing, BC). Each BC yields a digital ADC count called "
-        "<b>sample_lo</b>. The true deposited energy <b>ene_lo</b> cannot be read "
-        "directly because the ADC samples the sum of contributions from multiple "
-        "overlapping pulses (pile-up) on top of a noisy pedestal.",
+        "The ATLAS Tile Calorimeter samples signals every 25 ns, one sample per "
+        "Bunch Crossing (BC). Each BC gives a digital ADC count called sample_lo. "
+        "The actual deposited energy ene_lo cannot be read directly from a single "
+        "sample because each reading also contains contributions from nearby pulses "
+        "(pile-up) and a noisy pedestal baseline.",
         S["body"]
     ))
     story.append(Paragraph(
-        "Energy reconstruction exploits the fact that the TileCal pulse shape is "
-        "well-defined and stable. For each BC <i>n</i>, the seven samples "
-        "s[n-3] ... s[n+3] form a fixed-length window. The energy can be estimated "
-        "by a weighted sum:",
+        "The key observation is that the TileCal pulse shape is fixed and known. "
+        "So if you look at 7 consecutive samples around a BC of interest, the "
+        "relative pattern of those samples encodes both the energy and any timing "
+        "offset. A simple weighted sum of those 7 samples turns out to be enough "
+        "to reconstruct the energy:",
         S["body"]
     ))
     story.append(Paragraph(
-        "&nbsp;&nbsp;&nbsp;&nbsp;"
-        "<b>E_reco[n] = w<sub>-3</sub>&middot;s[n-3] + w<sub>-2</sub>&middot;s[n-2] + "
-        "... + w<sub>+3</sub>&middot;s[n+3] + bias</b>",
+        "E_reco[n] = w[-3]*s[n-3] + w[-2]*s[n-2] + ... + w[+3]*s[n+3] + bias",
         ParagraphStyle("eq", parent=S["body"], alignment=TA_CENTER,
                        fontName="Courier", fontSize=10, spaceAfter=8)
     ))
     story.append(Paragraph(
-        "This is exactly the <b>Optimal Filter (OF)</b> technique used in ATLAS "
-        "(Fullana et al., ATL-TILECAL-PUB-2005-001), which is mathematically "
-        "equivalent to a Wiener filter applied to a known signal shape in colored "
-        "noise. Fitting a standard linear regression to the data learns the same "
-        "filter coefficients w<sub>i</sub> from examples without requiring an "
-        "analytical pulse-shape model.",
+        "This is exactly the Optimal Filter (OF) approach used in ATLAS calorimetry "
+        "(Fullana et al.). Instead of deriving the filter weights analytically from "
+        "the pulse shape and noise model, I fitted a scikit-learn LinearRegression "
+        "to the training data and let it learn the weights directly. Both approaches "
+        "end up doing the same thing: finding the best linear combination of the "
+        "7 samples to estimate the energy.",
         S["body"]
     ))
     story.append(Paragraph(
-        "The input features are the 7-sample lo-gain windows (X[:, 1, :]), "
-        "pre-normalised to [0, 1]. The target is the denormalised lo-gain energy "
-        "(y[:, 1] &times; std + mean). The model was trained with scikit-learn "
-        "<i>LinearRegression</i> using ordinary least squares on "
-        f"{N_TRAIN:,} training events from 261 shards.",
+        f"Training used {N_TRAIN:,} events from 261 shards. The lo-gain channel "
+        "(X[:, 1, :]) was used as input and the denormalised energy (y[:, 1] * std + mean) "
+        "as the target.",
         S["body"]
     ))
 
-    # ------------------------------------------------------------------
-    # Section 2 -- Results
-    # ------------------------------------------------------------------
-    story.append(Paragraph("2. Results on the Test Set", S["h2"]))
+    # Section 2
+    story.append(Paragraph("2. Results", S["h2"]))
     story.append(Paragraph(
-        f"The figure of merit is (E<sub>reco</sub> - E<sub>true</sub>) / E<sub>true</sub>, "
-        f"computed on the {N_TEST:,} test-set events after filtering to "
-        f"|E<sub>true</sub>| &gt; {ENERGY_THR} (keeping {N_FILTERED:,} events). "
-        "Near-zero energy BCs are excluded because the relative residual diverges "
-        "and the absolute reconstruction error is dominated by pedestal noise "
-        "rather than the filter quality.",
+        f"The figure of merit is (E_reco - E_true) / E_true, computed on "
+        f"{N_TEST:,} test-set events. BCs where |E_true| is below {ENERGY_THR} are "
+        f"excluded because the relative error becomes meaninglessly large for near-zero "
+        f"signals. This leaves {N_FILTERED:,} events.",
         S["body"]
     ))
 
-    # Table of key numbers
     data = [
         ["Metric", "Value"],
         ["Mean (E_reco - E_true) / E_true", f"{FOM_MEAN:+.6f}"],
         ["RMS  (E_reco - E_true) / E_true", f"{FOM_RMS:.6f}"],
-        ["Validation R\u00b2",               f"{VAL_R2:.6f}"],
-        ["Training events",                   f"{N_TRAIN:,}"],
-        ["Test events (filtered)",            f"{N_FILTERED:,}"],
-        ["Bonus: timing accuracy",            f"{TIMING_ACC:.4f}"],
+        ["Validation R\u00b2",              f"{VAL_R2:.6f}"],
+        ["Training events",                  f"{N_TRAIN:,}"],
+        ["Test events (after filter)",       f"{N_FILTERED:,}"],
+        ["Bonus: timing accuracy",           f"{TIMING_ACC:.4f}"],
     ]
-    t = Table(data, colWidths=[10 * cm, 5.5 * cm])
+    t = Table(data, colWidths=[10*cm, 5.5*cm])
     t.setStyle(TableStyle([
-        ("BACKGROUND",  (0, 0), (-1, 0), colors.HexColor("#1a3a5c")),
-        ("TEXTCOLOR",   (0, 0), (-1, 0), colors.white),
-        ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",    (0, 0), (-1, -1), 10),
+        ("BACKGROUND",     (0, 0), (-1, 0), colors.HexColor("#1a3a5c")),
+        ("TEXTCOLOR",      (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",       (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",       (0, 0), (-1, -1), 10),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1),
          [colors.HexColor("#eaf2fb"), colors.white]),
-        ("ALIGN",       (1, 0), (-1, -1), "CENTER"),
-        ("GRID",        (0, 0), (-1, -1), 0.4, colors.HexColor("#aaaaaa")),
-        ("TOPPADDING",  (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("ALIGN",          (1, 0), (-1, -1), "CENTER"),
+        ("GRID",           (0, 0), (-1, -1), 0.4, colors.HexColor("#aaaaaa")),
+        ("TOPPADDING",     (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING",  (0, 0), (-1, -1), 4),
     ]))
     story.append(t)
-    story.append(Spacer(1, 0.3 * cm))
+    story.append(Spacer(1, 0.3*cm))
 
     story.append(Paragraph(
-        "A mean close to zero indicates the filter is unbiased. The RMS of ~1.4 "
-        "reflects the intrinsic difficulty of low-energy reconstruction where "
-        "pedestal fluctuations are comparable to the signal. The validation "
-        "R\u00b2 of 0.958 confirms strong predictive power across the full "
-        "energy range.",
+        f"The mean of {FOM_MEAN:+.4f} is very close to zero, which means the filter "
+        "is not systematically over- or under-estimating energy. The RMS of "
+        f"{FOM_RMS:.4f} is mainly driven by low-energy BCs where noise is comparable "
+        "to the signal. The R\u00b2 of 0.958 on validation shows the model generalises well.",
         S["body"]
     ))
 
-    # ------------------------------------------------------------------
-    # Section 3 -- Plot 1
-    # ------------------------------------------------------------------
-    story.append(Paragraph("3. Residual Distribution (Plot 1)", S["h2"]))
-
+    # Section 3
+    story.append(Paragraph("3. Residual Distribution", S["h2"]))
     p1 = os.path.join(DIR, "plot1_residual_histogram.png")
     if os.path.exists(p1):
-        story.append(Image(p1, width=14 * cm, height=9.5 * cm))
+        story.append(Image(p1, width=14*cm, height=9.5*cm))
         story.append(Paragraph(
-            "Figure 1: Distribution of (E_reco - E_true) / E_true on the test set "
-            f"(events with |E_true| > {ENERGY_THR}). The red dashed line marks the "
-            "mean; orange dotted lines mark +/-1 RMS. The distribution is "
-            "approximately Gaussian centred near zero.",
+            f"Figure 1: Distribution of (E_reco - E_true) / E_true on the test set "
+            f"(|E_true| > {ENERGY_THR}). Red dashed line = mean. "
+            "Orange dotted lines = +/- 1 RMS.",
             S["caption"]
         ))
-
     story.append(Paragraph(
-        "The histogram shows that the bulk of the reconstructed energies are "
-        "within a few percent of the true value. The small negative mean "
-        f"({FOM_MEAN:+.4f}) suggests a very slight underestimation, "
-        "consistent with residual pile-up contributions in the 7-sample window "
-        "not fully suppressed by the linear filter.",
+        "The distribution is roughly Gaussian and centred near zero. The slight "
+        f"negative mean ({FOM_MEAN:+.4f}) suggests the filter underestimates energy "
+        "by a small amount on average, likely because pile-up from neighbouring BCs "
+        "adds a positive bias to the input samples that the filter partially corrects for.",
         S["body"]
     ))
 
-    # ------------------------------------------------------------------
-    # Section 4 -- Plot 2
-    # ------------------------------------------------------------------
-    story.append(Paragraph("4. Residual vs True Energy (Plot 2)", S["h2"]))
-
+    # Section 4
+    story.append(Paragraph("4. Residual vs True Energy", S["h2"]))
     p2 = os.path.join(DIR, "plot2_residual_vs_energy.png")
     if os.path.exists(p2):
-        story.append(Image(p2, width=14 * cm, height=9.5 * cm))
+        story.append(Image(p2, width=14*cm, height=9.5*cm))
         story.append(Paragraph(
-            "Figure 2: 2-D hexbin of (E_reco - E_true) / E_true vs E_true. "
-            "Color encodes log\u2081\u2080 of the event count per cell. "
-            "The residual is consistent across the energy range, with slightly "
-            "larger spread at low energies where the signal-to-noise ratio is smaller.",
+            "Figure 2: 2D hexbin of (E_reco - E_true) / E_true vs E_true. "
+            "Color encodes log10 of event count per cell.",
             S["caption"]
         ))
-
     story.append(Paragraph(
-        "The 2D distribution confirms that the filter has no strong energy "
-        "dependence in its bias. The spread at low energies is expected: "
-        "a 1 ADC count pedestal fluctuation on a 10-unit signal produces a "
-        "10% relative error, while the same fluctuation on a 500-unit signal "
-        "is negligible.",
+        "The residual does not show any strong trend with energy, which is a good "
+        "sign -- the filter is not biased towards high or low energies. The wider "
+        "spread at lower energies is expected since a fixed-size pedestal fluctuation "
+        "has a bigger relative impact on a small signal.",
         S["body"]
     ))
 
-    # ------------------------------------------------------------------
-    # Section 5 -- Filter Weights
-    # ------------------------------------------------------------------
+    # Section 5
     story.append(Paragraph("5. Learned Filter Coefficients", S["h2"]))
     story.append(Paragraph(
-        "The seven learned weights below are the amplitude filter coefficients "
-        "of the data-driven Optimal Filter. The dominant weight at s[0] (the "
-        "in-time sample) is expected: the pulse peak falls there for a "
-        "perfectly-timed BC. Negative weights at neighbouring samples suppress "
-        "contributions from adjacent-BC pile-up.",
+        "The table below shows the 7 weights the model learned. "
+        "The in-time sample s[0] has by far the largest positive weight, "
+        "which makes sense since the pulse peak is at that position for a "
+        "perfectly-timed BC. The surrounding samples get smaller weights "
+        "that help cancel out contributions from adjacent-BC pile-up.",
         S["body"]
     ))
 
@@ -244,91 +205,75 @@ def make_pdf(out_path):
     cdata = [["Sample", "Coefficient"]] + \
             [[off, f"{w:+.4f}"] for off, w in zip(offsets, COEF)] + \
             [["bias", f"{BIAS:+.4f}"]]
-    ct = Table(cdata, colWidths=[4 * cm, 4 * cm])
+    ct = Table(cdata, colWidths=[4*cm, 4*cm])
     ct.setStyle(TableStyle([
-        ("BACKGROUND",  (0, 0), (-1, 0), colors.HexColor("#2c6e9c")),
-        ("TEXTCOLOR",   (0, 0), (-1, 0), colors.white),
-        ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",    (0, 0), (-1, -1), 10),
-        ("ALIGN",       (1, 0), (-1, -1), "CENTER"),
+        ("BACKGROUND",     (0, 0), (-1, 0), colors.HexColor("#2c6e9c")),
+        ("TEXTCOLOR",      (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",       (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",       (0, 0), (-1, -1), 10),
+        ("ALIGN",          (1, 0), (-1, -1), "CENTER"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1),
          [colors.HexColor("#eaf2fb"), colors.white]),
-        ("GRID",        (0, 0), (-1, -1), 0.4, colors.HexColor("#aaaaaa")),
-        ("TOPPADDING",  (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("GRID",           (0, 0), (-1, -1), 0.4, colors.HexColor("#aaaaaa")),
+        ("TOPPADDING",     (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING",  (0, 0), (-1, -1), 4),
     ]))
     story.append(ct)
-    story.append(Spacer(1, 0.2 * cm))
+    story.append(Spacer(1, 0.2*cm))
 
-    # ------------------------------------------------------------------
-    # Section 6 -- Bonus Timing
-    # ------------------------------------------------------------------
+    # Section 6
     story.append(PageBreak())
     story.append(Paragraph("6. Bonus: Timing Prediction", S["h2"]))
     story.append(Paragraph(
-        "In addition to amplitude, the TileCal Optimal Filter estimates the "
-        "<b>phase</b> (timing offset) of the signal. Time=0 means the signal "
-        "is perfectly aligned with the digital clock; Time=+/-1 means it is "
-        "aligned with the next/previous BC (a 25 ns shift).",
+        "Beyond energy, I also tried to predict the timing offset of the signal. "
+        "Time=0 means the pulse is aligned with the current BC. "
+        "Time=-1 means it came one BC early; Time=+1 means one BC late.",
         S["body"]
     ))
     story.append(Paragraph(
-        "Since explicit timing labels are not stored in the dataset, "
-        "we derive a physics-motivated proxy: the centre-of-mass of the "
-        "7-sample window relative to the central index (3). A CoM below "
-        "2.5 corresponds to Time=-1, between 2.5 and 3.5 to Time=0, "
-        "and above 3.5 to Time=+1. This proxy is computed only for "
-        "events with E > 50 (where the pulse shape dominates over noise).",
+        "The dataset does not include explicit timing labels, so I derived a proxy "
+        "from the data itself: the centre-of-mass of the 7-sample window. "
+        "If the pulse peak sits at the centre (index 3) the timing is 0. "
+        "A left-shifted peak means Time=-1 and a right-shifted peak means Time=+1. "
+        "This proxy is only reliable for events with visible energy (E > 50), "
+        "so only those events were used.",
         S["body"]
     ))
     story.append(Paragraph(
-        "A logistic regression classifier is then trained to predict the "
-        "discrete timing label {-1, 0, +1} from the same 7 input samples. "
-        f"On the test set, the classifier achieves <b>{TIMING_ACC:.1%} accuracy</b>. "
-        "This is possible because the pulse shape shifts systematically with "
-        "the timing offset, and this shape information is encoded in the "
-        "relative magnitudes of the 7 samples.",
+        "A logistic regression classifier (same 7-sample input) was then trained "
+        "to predict these timing labels. On the test set it got "
+        f"<b>{TIMING_ACC:.1%} accuracy</b>. The 7 samples carry enough shape "
+        "information to distinguish the three timing cases most of the time.",
         S["body"]
     ))
 
     p3 = os.path.join(DIR, "plot3_timing.png")
     if os.path.exists(p3):
-        story.append(Image(p3, width=14.5 * cm, height=6.5 * cm))
+        story.append(Image(p3, width=14.5*cm, height=6.5*cm))
         story.append(Paragraph(
-            "Figure 3: True timing proxy (left) and predicted timing (right) "
-            f"for test events with E > 50 (N = 368). "
-            f"Classifier accuracy = {TIMING_ACC:.4f}.",
+            f"Figure 3: True timing proxy (left) and predicted timing (right) "
+            f"for test events with E > 50 (N=368). Accuracy = {TIMING_ACC:.4f}.",
             S["caption"]
         ))
 
-    # ------------------------------------------------------------------
-    # Section 7 -- Interpretation
-    # ------------------------------------------------------------------
-    story.append(Paragraph("7. Interpretation", S["h2"]))
+    # Section 7
+    story.append(Paragraph("7. Summary", S["h2"]))
     story.append(Paragraph(
-        "The linear algorithm recovers energy from ADC samples because the "
-        "TileCal pulse shape is deterministic: for a given deposited energy, "
-        "the 7-sample pattern is fixed (up to noise and pile-up). The "
-        "Optimal Filter exploits this by computing the inner product of the "
-        "sample vector with a fixed coefficient vector that is matched to the "
-        "expected pulse shape and inversely weighted by the noise covariance. "
-        "The data-driven version (linear regression) learns the same structure "
-        "automatically without requiring an explicit model of the pulse or "
-        "the noise.",
+        "The linear regression approach works well because the TileCal pulse shape "
+        "is stable and predictable. Once the shape is fixed, recovering the amplitude "
+        "is just a matter of finding the right weighted sum of samples, which is "
+        "exactly what linear regression does.",
         S["body"]
     ))
     story.append(Paragraph(
-        "The achieved R\u00b2 of 0.958 and near-zero mean residual confirm "
-        "that a simple linear model is highly effective for this task. "
-        "Non-linear extensions (neural networks, boosted trees) can improve "
-        "the RMS further, particularly for pile-up-dominated low-energy BCs, "
-        "which is the motivation for the GSoC project.",
+        f"The achieved mean residual of {FOM_MEAN:+.4f} and R\u00b2 of {VAL_R2:.3f} "
+        "show that a simple linear model is already quite effective. More complex "
+        "models (neural networks etc.) would likely reduce the RMS further, especially "
+        "at low energies where pile-up is hardest to separate, which is what the "
+        "full GSoC project is about.",
         S["body"]
     ))
 
-    # ------------------------------------------------------------------
-    # References
-    # ------------------------------------------------------------------
     story.append(HRFlowable(width="100%", thickness=0.8,
                              color=colors.HexColor("#aaaaaa"), spaceBefore=12))
     story.append(Paragraph(
@@ -343,9 +288,8 @@ def make_pdf(out_path):
     ))
 
     doc.build(story)
-    print(f"PDF report saved -> {out_path}")
+    print(f"PDF saved -> {out_path}")
 
 
 if __name__ == "__main__":
-    out = os.path.join(DIR, "report_atlas_tilecal.pdf")
-    make_pdf(out)
+    make_pdf(os.path.join(DIR, "report_atlas_tilecal.pdf"))
